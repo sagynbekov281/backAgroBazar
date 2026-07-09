@@ -100,20 +100,63 @@ transportRouter.post('/', auth, (req: AR, res) => {
 export const pricesRouter = Router();
 pricesRouter.get('/', (req, res) => { const db = readDb(); res.json({ prices: db.prices }); });
 
+/* ── ADMIN ── */
+export const adminRouter = Router();
+adminRouter.get('/health', (_req, res) => {
+  res.json({ ok: true, service: 'admin' });
+});
+
+/* ── CHAT ── */
 /* ── CHAT ── */
 export const chatRouter = Router();
 
+// Личный чат 1-на-1
 chatRouter.post('/start', auth, (req: AR, res) => {
   const db = readDb();
   const me = db.users.find(u => u.id === req.userId);
   const other = db.users.find(u => u.id === req.body.userId);
   if (!me || !other) return res.status(404).json({ message: 'Колдонуучу табылган жок' });
-  let room = db.rooms.find(r => r.participants.some(p => p.id === me.id) && r.participants.some(p => p.id === other.id));
+  let room = db.rooms.find(r => !r.isGroup && r.participants.some(p => p.id === me.id) && r.participants.some(p => p.id === other.id));
   if (!room) {
-    room = { id: nanoid(), participants: [{ id: me.id, name: me.name }, { id: other.id, name: other.name }], createdAt: new Date().toISOString() };
+    room = { id: nanoid(), isGroup: false, participants: [{ id: me.id, name: me.name }, { id: other.id, name: other.name }], createdAt: new Date().toISOString() };
     db.rooms.push(room); writeDb(db);
   }
   res.json({ roomId: room.id });
+});
+
+// Создание группы
+chatRouter.post('/groups', auth, (req: AR, res) => {
+  const db = readDb();
+  const me = db.users.find(u => u.id === req.userId);
+  if (!me) return res.status(401).json({ message: 'Авторизация талап кылынат' });
+  const { name, userIds } = req.body as { name: string; userIds: string[] };
+  if (!name?.trim()) return res.status(400).json({ message: 'Топтун атын жазыңыз' });
+  const ids = Array.from(new Set([...(userIds || []), me.id]));
+  const participants = ids
+    .map(id => db.users.find(u => u.id === id))
+    .filter(Boolean)
+    .map(u => ({ id: u!.id, name: u!.name }));
+  if (participants.length < 2) return res.status(400).json({ message: 'Жок дегенде дагы бир мүчө кошуңуз' });
+  const room: any = {
+    id: nanoid(), isGroup: true, name: name.trim(), ownerId: me.id,
+    participants, createdAt: new Date().toISOString(),
+  };
+  db.rooms.push(room); writeDb(db);
+  res.status(201).json({ room });
+});
+
+// Добавить участника в группу
+chatRouter.post('/groups/:roomId/members', auth, (req: AR, res) => {
+  const db = readDb();
+  const room = db.rooms.find(r => r.id === req.params.roomId);
+  if (!room || !room.isGroup) return res.status(404).json({ message: 'Топ табылган жок' });
+  const user = db.users.find(u => u.id === req.body.userId);
+  if (!user) return res.status(404).json({ message: 'Колдонуучу табылган жок' });
+  if (!room.participants.some(p => p.id === user.id)) {
+    room.participants.push({ id: user.id, name: user.name });
+    writeDb(db);
+  }
+  res.json({ room });
 });
 
 chatRouter.get('/rooms', auth, (req: AR, res) => {
@@ -122,12 +165,14 @@ chatRouter.get('/rooms', auth, (req: AR, res) => {
     const msgs = db.messages.filter(m => m.roomId === r.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const unread = msgs.filter(m => m.senderId !== req.userId && !m.read).length;
     return { ...r, lastMessage: msgs[0]?.text, lastAt: msgs[0]?.createdAt, unread };
-  });
+  }).sort((a, b) => new Date(b.lastAt || b.createdAt).getTime() - new Date(a.lastAt || a.createdAt).getTime());
   res.json({ rooms });
 });
 
 chatRouter.get('/rooms/:roomId/messages', auth, (req: AR, res) => {
   const db = readDb();
+  const room = db.rooms.find(r => r.id === req.params.roomId);
+  if (!room || !room.participants.some(p => p.id === req.userId)) return res.status(403).json({ message: 'Укук жок' });
   const msgs = db.messages.filter(m => m.roomId === req.params.roomId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   res.json({ messages: msgs });
 });
@@ -136,34 +181,11 @@ chatRouter.post('/rooms/:roomId/messages', auth, (req: AR, res) => {
   const db = readDb();
   const user = db.users.find(u => u.id === req.userId);
   if (!user) return res.status(401).json({ message: 'Авторизация талап кылынат' });
+  const room = db.rooms.find(r => r.id === req.params.roomId);
+  if (!room || !room.participants.some(p => p.id === user.id)) return res.status(403).json({ message: 'Укук жок' });
   const msg = { id: nanoid(), roomId: String(req.params.roomId), senderId: user.id, senderName: user.name, text: req.body.text, createdAt: new Date().toISOString(), read: false };
-  db.messages.push(msg); writeDb(db); res.status(201).json({ message: msg });
-});
-
-/* ── ADMIN ── */
-export const adminRouter = Router();
-
-adminRouter.use(auth, (req: AR, res, next) => {
-  const db = readDb();
-  const user = db.users.find(u => u.id === req.userId);
-  if (user?.role !== 'admin') return res.status(403).json({ message: 'Укук жок' });
-  next();
-});
-
-adminRouter.get('/stats', (req, res) => {
-  const db = readDb();
-  const byRole: Record<string, number> = {};
-  db.users.forEach(u => { byRole[u.role] = (byRole[u.role] || 0) + 1; });
-  res.json({ userCount: db.users.length, listingCount: db.listings.length, orderCount: db.orders.length, completedOrderCount: db.orders.filter(o => o.status === 'completed').length, byRole });
-});
-
-adminRouter.get('/users', (req, res) => { const db = readDb(); const users = db.users.map(({ passwordHash, ...u }) => u); res.json({ users }); });
-adminRouter.get('/listings', (req, res) => { const db = readDb(); res.json({ listings: db.listings }); });
-adminRouter.get('/orders', (req, res) => { const db = readDb(); res.json({ orders: db.orders }); });
-
-adminRouter.post('/users/:id/verify', (req, res) => {
-  const db = readDb();
-  const user = db.users.find(u => u.id === req.params.id);
-  if (!user) return res.status(404).json({ message: 'Колдонуучу табылган жок' });
-  user.verified = true; writeDb(db); res.json({ success: true });
+  db.messages.push(msg); writeDb(db);
+  const io = req.app.get('io');
+  if (io) io.to(`room:${room.id}`).emit('message:new', msg);
+  res.status(201).json({ message: msg });
 });

@@ -37,6 +37,18 @@ r.get('/me', auth, (req: AR, res) => {
   res.json({ user: pub(user) });
 });
 
+r.get('/search', auth, (req: AR, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase();
+  if (q.length < 2) return res.json({ users: [] });
+  const db = readDb();
+  const results = db.users
+    .filter(u => u.id !== req.userId)
+    .filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+    .slice(0, 15)
+    .map(pub);
+  res.json({ users: results });
+});
+
 r.get('/user/:id', (req, res) => {
   const db = readDb();
   const user = db.users.find(u => u.id === req.params.id);

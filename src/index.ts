@@ -1,13 +1,16 @@
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'http';
 import authRoutes from './routes/auth';
 import listingRoutes from './routes/listings';
 import { ordersRouter, reviewsRouter, announcementsRouter, transportRouter, pricesRouter, chatRouter, adminRouter } from './routes/all';
+import { setupSocket } from './socket';
+import { initDb } from './db';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
 app.use(express.json({ limit: '10mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'AgroBazar API' }));
@@ -22,8 +25,17 @@ app.use('/api/prices', pricesRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/admin', adminRouter);
 
-app.use((_req, res) => res.status(404).json({ message: 'Маршрут табылган жок' }));
+app.use((_req, res) => res.status(404).json({ message: 'Маршрут не найден' }));
 
-app.listen(PORT, () => {
-  console.log(`🌱 AgroBazar API иштеп жатат: http://localhost:${PORT}`);
-});
+const server = createServer(app);
+const io = setupSocket(server);
+app.set('io', io);
+
+async function start() {
+  await initDb();
+  server.listen(PORT, () => {
+    console.log(`🌱 AgroBazar API работает: http://localhost:${PORT}`);
+  });
+}
+
+start(); 
