@@ -1,4 +1,8 @@
+import fs from 'fs';
+import path from 'path';
 import { MongoClient, Collection } from 'mongodb';
+
+const DB_PATH = path.join(__dirname, '..', 'db.json');
 
 export interface DbUser { id: string; name: string; email: string; passwordHash: string; phone: string; role: string; region?: string; district?: string; village?: string; companyName?: string; telegram?: string; whatsapp?: string; rating: number; reviewCount: number; verified: boolean; totalSold: number; totalBought: number; createdAt: string; }
 export interface DbListing { id: string; ownerId: string; ownerName: string; ownerRating: number; ownerVerified: boolean; title: string; category: string; images: string[]; description: string; price: number; currency: string; unit: string; minOrder: number; maxOrder?: number; bulkPrices?: any[]; weight?: number; region: string; district?: string; organic: boolean; exportReady: boolean; hasDelivery: boolean; inStock: boolean; vip: boolean; harvestDate?: string; views: number; createdAt: string; }
@@ -25,23 +29,31 @@ function empty(): DB { return { users: [], listings: [], orders: [], reviews: []
 
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const DOC_ID = 'main';
+const USE_MONGO = !!MONGODB_URI;
 
 let client: MongoClient | null = null;
 let collection: Collection<{ _id: string } & DB> | null = null;
-
-// In-memory cache — readDb()/writeDb() остаются синхронными для совместимости со старым кодом роутов
 let cache: DB = empty();
 let saveQueue: Promise<any> = Promise.resolve();
 
+/* ── режим без Mongo: старое поведение через локальный файл db.json ── */
+function readFileDb(): DB {
+  if (!fs.existsSync(DB_PATH)) { const d = empty(); fs.writeFileSync(DB_PATH, JSON.stringify(d, null, 2)); return d; }
+  try {
+    const db = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+    db.rooms = (db.rooms || []).map((r: any) => ({ isGroup: false, ...r }));
+    return { ...empty(), ...db };
+  } catch { return empty(); }
+}
+function writeFileDb(db: DB) { fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2)); }
+
 export async function initDb() {
-  if (!MONGODB_URI) {
-    console.warn('⚠️  MONGODB_URI жок — маалыматтар сакталбайт (убедись что переменная задана на Render)');
+  if (!USE_MONGO) {
+    cache = readFileDb();
+    console.log('📁 Жергиликтүү db.json колдонулууда (MONGODB_URI жок)');
     return;
   }
-  client = new MongoClient(MONGODB_URI, {
-    serverSelectionTimeoutMS: 8000, // не ждать вечно, если сеть/пароль неверны
-    connectTimeoutMS: 8000,
-  });
+  client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 8000, connectTimeoutMS: 8000 });
   await client.connect();
   const db = client.db();
   collection = db.collection<{ _id: string } & DB>('app_data');
@@ -63,8 +75,8 @@ export function readDb(): DB {
 
 export function writeDb(db: DB) {
   cache = db;
-  if (!collection) return; // MONGODB_URI не задан — работаем только в памяти (данные пропадут при рестарте)
-  // сохраняем в очередь, чтобы записи не перезаписывали друг друга гонкой условий
+  if (!USE_MONGO) { writeFileDb(cache); return; }
+  if (!collection) return;
   saveQueue = saveQueue.then(() =>
     collection!.updateOne({ _id: DOC_ID } as any, { $set: cache }, { upsert: true })
   ).catch(err => console.error('Mongo save error:', err));
