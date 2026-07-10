@@ -38,7 +38,10 @@ export async function initDb() {
     console.warn('⚠️  MONGODB_URI жок — маалыматтар сакталбайт (убедись что переменная задана на Render)');
     return;
   }
-  client = new MongoClient(MONGODB_URI);
+  client = new MongoClient(MONGODB_URI, {
+    serverSelectionTimeoutMS: 8000, // не ждать вечно, если сеть/пароль неверны
+    connectTimeoutMS: 8000,
+  });
   await client.connect();
   const db = client.db();
   collection = db.collection<{ _id: string } & DB>('app_data');

@@ -25,17 +25,19 @@ app.use('/api/prices', pricesRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/admin', adminRouter);
 
-app.use((_req, res) => res.status(404).json({ message: 'Маршрут не найден' }));
+app.use((_req, res) => res.status(404).json({ message: 'Маршрут табылган жок' }));
 
 const server = createServer(app);
 const io = setupSocket(server);
 app.set('io', io);
 
-async function start() {
-  await initDb();
-  server.listen(PORT, () => {
-    console.log(`🌱 AgroBazar API работает: http://localhost:${PORT}`);
-  });
-}
+// Сервер стартует сразу и открывает порт, не дожидаясь MongoDB.
+// Если MongoDB зависнет или упадёт — сайт всё равно будет жив,
+// просто данные не будут сохраняться, пока подключение не восстановится.
+server.listen(PORT, () => {
+  console.log(`🌱 AgroBazar API иштеп жатат: http://localhost:${PORT}`);
+});
 
-start(); 
+initDb().catch(err => {
+  console.error('❌ MongoDB инициализация катасы:', err.message);
+});
