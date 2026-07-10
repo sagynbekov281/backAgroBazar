@@ -1,10 +1,14 @@
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
-import { readDb, writeDb, DbUser, DbListing, DbPrice } from './db';
+import { readDb, writeDb, initDb, DbUser, DbListing, DbPrice } from './db';
 
 async function seed() {
+  await initDb();
+
   const db = readDb();
   if (db.users.length > 0) { console.log('Маалымат базасы толтурулган, өтүп кетүүдө.'); return; }
+
+  // ... остальной код без изменений
 
   const hash = await bcrypt.hash('123456', 10);
 
