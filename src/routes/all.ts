@@ -155,6 +155,29 @@ chatRouter.post('/groups/:roomId/members', auth, (req: AR, res) => {
   res.json({ room });
 });
 
+chatRouter.post('/groups/:roomId/leave', auth, (req: AR, res) => {
+  const db = readDb();
+  const room = db.rooms.find(r => r.id === req.params.roomId);
+  if (!room || !room.isGroup) return res.status(404).json({ message: 'Топ табылган жок' });
+  if (!room.participants.some(p => p.id === req.userId)) return res.status(403).json({ message: 'Сиз бул топто эмессиз' });
+
+  room.participants = room.participants.filter(p => p.id !== req.userId);
+
+  // топ бошосо — толугу менен өчүрөбүз
+  if (room.participants.length === 0) {
+    db.rooms = db.rooms.filter(r => r.id !== room!.id);
+    db.messages = db.messages.filter(m => m.roomId !== room!.id);
+  } else if (room.ownerId === req.userId) {
+    // ээси чыкса — жаңы ээ дайындайбыз
+    room.ownerId = room.participants[0].id;
+  }
+
+  writeDb(db);
+  const io = req.app.get('io');
+  if (io) io.to(`room:${req.params.roomId}`).emit('group:left', { roomId: req.params.roomId, userId: req.userId });
+  res.json({ success: true });
+});
+
 chatRouter.get('/rooms', auth, (req: AR, res) => {
   const db = readDb();
   const rooms = db.rooms.filter(r => r.participants.some(p => p.id === req.userId)).map(r => {
@@ -215,6 +238,9 @@ chatRouter.delete('/rooms/:roomId/messages/:messageId', auth, (req: AR, res) => 
   if (io) io.to(`room:${req.params.roomId}`).emit('message:deleted', { roomId: req.params.roomId, messageId: req.params.messageId });
   res.json({ success: true });
 });
+
+
+
 // Создание группы
 chatRouter.post('/groups', auth, (req: AR, res) => {
   const db = readDb();

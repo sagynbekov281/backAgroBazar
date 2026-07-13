@@ -112,6 +112,27 @@
       "totalSold": 0,
       "totalBought": 0,
       "createdAt": "2025-12-14T07:55:08.379Z"
+    },
+    {
+      "id": "i_tPZ6TyWZtLsffZF5Qwq",
+      "name": "com",
+      "email": "sasd@gmail.com",
+      "passwordHash": "$2b$10$ZJ0IgSYTRQnfrocNg6rsu.x8asrhEWHD5vm8DQSA18LRVOIZXBQgO",
+      "phone": "3536",
+      "role": "company",
+      "region": "Чуйская область",
+      "district": "4rgdcv",
+      "village": "vsvdv",
+      "companyName": "riiiiri",
+      "telegram": "@34FDFW",
+      "whatsapp": "3534634",
+      "rating": 0,
+      "reviewCount": 0,
+      "verified": false,
+      "totalSold": 0,
+      "totalBought": 0,
+      "createdAt": "2026-07-13T08:44:37.162Z",
+      "lastSeen": "2026-07-13T09:00:38.299Z"
     }
   ],
   "listings": [
@@ -517,7 +538,33 @@
       "createdAt": "2026-06-25T07:55:08.380Z"
     }
   ],
-  "rooms": [],
+  "rooms": [
+    {
+      "isGroup": true,
+      "id": "YEL51JW8PQVjIvZXtYxb_",
+      "name": "group",
+      "ownerId": "i_tPZ6TyWZtLsffZF5Qwq",
+      "participants": [
+        {
+          "id": "farmer1",
+          "name": "Айбек Турсунов"
+        },
+        {
+          "id": "farmer2",
+          "name": "Гүлнара Асанова"
+        },
+        {
+          "id": "farmer3",
+          "name": "Мирлан Джумабеков"
+        },
+        {
+          "id": "i_tPZ6TyWZtLsffZF5Qwq",
+          "name": "com"
+        }
+      ],
+      "createdAt": "2026-07-13T08:46:14.888Z"
+    }
+  ],
   "messages": [],
   "transports": [
     {
