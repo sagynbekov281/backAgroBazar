@@ -111,9 +111,7 @@ exports.adminRouter.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'admin' });
 });
 /* ── CHAT ── */
-/* ── CHAT ── */
 exports.chatRouter = (0, express_1.Router)();
-// Личный чат 1-на-1
 exports.chatRouter.post('/start', auth_1.auth, (req, res) => {
     const db = (0, db_1.readDb)();
     const me = db.users.find(u => u.id === req.userId);
@@ -128,7 +126,6 @@ exports.chatRouter.post('/start', auth_1.auth, (req, res) => {
     }
     res.json({ roomId: room.id });
 });
-// Создание группы
 exports.chatRouter.post('/groups', auth_1.auth, (req, res) => {
     const db = (0, db_1.readDb)();
     const me = db.users.find(u => u.id === req.userId);
@@ -149,10 +146,22 @@ exports.chatRouter.post('/groups', auth_1.auth, (req, res) => {
         participants, createdAt: new Date().toISOString(),
     };
     db.rooms.push(room);
+    const now = () => new Date().toISOString();
+    const sysMsgs = [
+        { id: (0, nanoid_1.nanoid)(), roomId: room.id, senderId: 'system', senderName: 'system', text: `«${room.name}» тобу түзүлдү`, createdAt: now(), read: true, readBy: [], type: 'system' },
+    ];
+    participants.forEach(p => {
+        if (p.id !== me.id) {
+            sysMsgs.push({ id: (0, nanoid_1.nanoid)(), roomId: room.id, senderId: 'system', senderName: 'system', text: `${p.name} топко кошулду. Кош келиңиз!`, createdAt: now(), read: true, readBy: [], type: 'system' });
+        }
+    });
+    db.messages.push(...sysMsgs);
     (0, db_1.writeDb)(db);
+    const io = req.app.get('io');
+    if (io)
+        sysMsgs.forEach(m => io.to(`room:${room.id}`).emit('message:new', m));
     res.status(201).json({ room });
 });
-// Добавить участника в группу
 exports.chatRouter.post('/groups/:roomId/members', auth_1.auth, (req, res) => {
     const db = (0, db_1.readDb)();
     const room = db.rooms.find(r => r.id === req.params.roomId);
@@ -161,18 +170,99 @@ exports.chatRouter.post('/groups/:roomId/members', auth_1.auth, (req, res) => {
     const user = db.users.find(u => u.id === req.body.userId);
     if (!user)
         return res.status(404).json({ message: 'Колдонуучу табылган жок' });
+    const io = req.app.get('io');
     if (!room.participants.some(p => p.id === user.id)) {
         room.participants.push({ id: user.id, name: user.name });
+        const sysMsg = { id: (0, nanoid_1.nanoid)(), roomId: room.id, senderId: 'system', senderName: 'system', text: `${user.name} топко кошулду. Кош келиңиз!`, createdAt: new Date().toISOString(), read: true, readBy: [], type: 'system' };
+        db.messages.push(sysMsg);
         (0, db_1.writeDb)(db);
+        if (io)
+            io.to(`room:${room.id}`).emit('message:new', sysMsg);
     }
     res.json({ room });
+});
+// Топтун атын жана аватаркасын өзгөртүү (топтун ээси гана)
+exports.chatRouter.patch('/groups/:roomId', auth_1.auth, (req, res) => {
+    const db = (0, db_1.readDb)();
+    const room = db.rooms.find(r => r.id === req.params.roomId);
+    if (!room || !room.isGroup)
+        return res.status(404).json({ message: 'Топ табылган жок' });
+    if (room.ownerId !== req.userId)
+        return res.status(403).json({ message: 'Бул аракетти тек топтун ээси жасай алат' });
+    const me = db.users.find(u => u.id === req.userId);
+    const { name, avatar } = req.body;
+    const io = req.app.get('io');
+    const sysMsgs = [];
+    const now = () => new Date().toISOString();
+    if (name !== undefined) {
+        if (!name.trim())
+            return res.status(400).json({ message: 'Топтун атын жазыңыз' });
+        const trimmed = name.trim();
+        if (trimmed !== room.name) {
+            sysMsgs.push({ id: (0, nanoid_1.nanoid)(), roomId: room.id, senderId: 'system', senderName: 'system', text: `${me?.name || 'Колдонуучу'} тобтун атын «${trimmed}» деп өзгөрттү`, createdAt: now(), read: true, readBy: [], type: 'system' });
+        }
+        room.name = trimmed;
+    }
+    if (avatar !== undefined) {
+        if (avatar && avatar.length > 550000) {
+            return res.status(400).json({ message: 'Сүрөт өтө чоң. Кичине сүрөт тандаңыз.' });
+        }
+        if (avatar) {
+            sysMsgs.push({ id: (0, nanoid_1.nanoid)(), roomId: room.id, senderId: 'system', senderName: 'system', text: `${me?.name || 'Колдонуучу'} тобтун сүрөтүн өзгөрттү`, createdAt: now(), read: true, readBy: [], type: 'system' });
+        }
+        else if (room.avatar) {
+            sysMsgs.push({ id: (0, nanoid_1.nanoid)(), roomId: room.id, senderId: 'system', senderName: 'system', text: `${me?.name || 'Колдонуучу'} тобтун сүрөтүн өчүрдү`, createdAt: now(), read: true, readBy: [], type: 'system' });
+        }
+        room.avatar = avatar || undefined;
+    }
+    if (sysMsgs.length)
+        db.messages.push(...sysMsgs);
+    (0, db_1.writeDb)(db);
+    if (io) {
+        io.to(`room:${room.id}`).emit('group:updated', { room });
+        sysMsgs.forEach(m => io.to(`room:${room.id}`).emit('message:new', m));
+    }
+    res.json({ room });
+});
+exports.chatRouter.post('/groups/:roomId/leave', auth_1.auth, (req, res) => {
+    const db = (0, db_1.readDb)();
+    const room = db.rooms.find(r => r.id === req.params.roomId);
+    if (!room || !room.isGroup)
+        return res.status(404).json({ message: 'Топ табылган жок' });
+    const leaver = db.users.find(u => u.id === req.userId);
+    if (!room.participants.some(p => p.id === req.userId))
+        return res.status(403).json({ message: 'Сиз бул топто эмессиз' });
+    room.participants = room.participants.filter(p => p.id !== req.userId);
+    const sysMsg = { id: (0, nanoid_1.nanoid)(), roomId: room.id, senderId: 'system', senderName: 'system', text: `${leaver?.name || 'Колдонуучу'} топтон чыгып кетти`, createdAt: new Date().toISOString(), read: true, readBy: [], type: 'system' };
+    // топ бошосо — толугу менен өчүрөбүз
+    if (room.participants.length === 0) {
+        db.rooms = db.rooms.filter(r => r.id !== room.id);
+        db.messages = db.messages.filter(m => m.roomId !== room.id);
+    }
+    else {
+        db.messages.push(sysMsg);
+        if (room.ownerId === req.userId) {
+            // ээси чыкса — жаңы ээ дайындайбыз
+            room.ownerId = room.participants[0].id;
+        }
+    }
+    (0, db_1.writeDb)(db);
+    const io = req.app.get('io');
+    if (io) {
+        io.to(`room:${req.params.roomId}`).emit('group:left', { roomId: req.params.roomId, userId: req.userId });
+        if (room.participants.length > 0)
+            io.to(`room:${req.params.roomId}`).emit('message:new', sysMsg);
+    }
+    res.json({ success: true });
 });
 exports.chatRouter.get('/rooms', auth_1.auth, (req, res) => {
     const db = (0, db_1.readDb)();
     const rooms = db.rooms.filter(r => r.participants.some(p => p.id === req.userId)).map(r => {
-        const msgs = db.messages.filter(m => m.roomId === r.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        const unread = msgs.filter(m => m.senderId !== req.userId && !m.read).length;
-        return { ...r, lastMessage: msgs[0]?.text, lastAt: msgs[0]?.createdAt, unread };
+        const allMsgs = db.messages.filter(m => m.roomId === r.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const lastReal = allMsgs.find(m => m.type !== 'system') || allMsgs[0];
+        const unread = allMsgs.filter(m => m.type !== 'system' && m.senderId !== req.userId && !(m.readBy || []).includes(req.userId)).length;
+        const lastMessage = lastReal ? (lastReal.deleted ? 'Билдирүү өчүрүлгөн' : lastReal.type === 'image' ? '📷 Сүрөт' : lastReal.text) : undefined;
+        return { ...r, lastMessage, lastAt: lastReal?.createdAt, unread };
     }).sort((a, b) => new Date(b.lastAt || b.createdAt).getTime() - new Date(a.lastAt || a.createdAt).getTime());
     res.json({ rooms });
 });
@@ -192,11 +282,49 @@ exports.chatRouter.post('/rooms/:roomId/messages', auth_1.auth, (req, res) => {
     const room = db.rooms.find(r => r.id === req.params.roomId);
     if (!room || !room.participants.some(p => p.id === user.id))
         return res.status(403).json({ message: 'Укук жок' });
-    const msg = { id: (0, nanoid_1.nanoid)(), roomId: String(req.params.roomId), senderId: user.id, senderName: user.name, text: req.body.text, createdAt: new Date().toISOString(), read: false };
+    const { text, replyTo, type, fileUrl } = req.body;
+    const msg = { id: (0, nanoid_1.nanoid)(), roomId: String(req.params.roomId), senderId: user.id, senderName: user.name, text: text || '', createdAt: new Date().toISOString(), read: false, readBy: [user.id], replyTo, type: type || 'text', fileUrl };
     db.messages.push(msg);
     (0, db_1.writeDb)(db);
     const io = req.app.get('io');
     if (io)
         io.to(`room:${room.id}`).emit('message:new', msg);
     res.status(201).json({ message: msg });
+});
+exports.chatRouter.post('/rooms/:roomId/read', auth_1.auth, (req, res) => {
+    const db = (0, db_1.readDb)();
+    const room = db.rooms.find(r => r.id === req.params.roomId);
+    if (!room || !room.participants.some(p => p.id === req.userId))
+        return res.status(403).json({ message: 'Укук жок' });
+    let changed = false;
+    db.messages.forEach(m => {
+        if (m.roomId === req.params.roomId && m.senderId !== req.userId) {
+            m.readBy = m.readBy || [];
+            if (!m.readBy.includes(req.userId)) {
+                m.readBy.push(req.userId);
+                m.read = true;
+                changed = true;
+            }
+        }
+    });
+    if (changed)
+        (0, db_1.writeDb)(db);
+    const io = req.app.get('io');
+    if (io)
+        io.to(`room:${room.id}`).emit('message:read', { roomId: room.id, userId: req.userId });
+    res.json({ success: true });
+});
+exports.chatRouter.delete('/rooms/:roomId/messages/:messageId', auth_1.auth, (req, res) => {
+    const db = (0, db_1.readDb)();
+    const msg = db.messages.find(m => m.id === req.params.messageId && m.roomId === req.params.roomId);
+    if (!msg)
+        return res.status(404).json({ message: 'Билдирүү табылган жок' });
+    if (msg.senderId !== req.userId)
+        return res.status(403).json({ message: 'Укук жок' });
+    db.messages = db.messages.filter(m => m.id !== req.params.messageId);
+    (0, db_1.writeDb)(db);
+    const io = req.app.get('io');
+    if (io)
+        io.to(`room:${req.params.roomId}`).emit('message:deleted', { roomId: req.params.roomId, messageId: req.params.messageId });
+    res.json({ success: true });
 });

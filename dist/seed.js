@@ -7,11 +7,13 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const nanoid_1 = require("nanoid");
 const db_1 = require("./db");
 async function seed() {
+    await (0, db_1.initDb)();
     const db = (0, db_1.readDb)();
     if (db.users.length > 0) {
         console.log('Маалымат базасы толтурулган, өтүп кетүүдө.');
         return;
     }
+    // ... остальной код без изменений
     const hash = await bcryptjs_1.default.hash('123456', 10);
     const users = [
         { id: 'admin1', name: 'Администратор', email: 'admin@test.kg', passwordHash: hash, phone: '+996700000000', role: 'admin', region: 'Бишкек', rating: 5, reviewCount: 0, verified: true, totalSold: 0, totalBought: 0, createdAt: new Date().toISOString() },

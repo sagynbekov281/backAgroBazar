@@ -30,7 +30,7 @@ export interface DbMessage {
   readBy?: string[];
   replyTo?: string;
   deleted?: boolean;
-  type?: 'text' | 'image';
+  type?: 'text' | 'image' | 'system';
   fileUrl?: string;
 }
 export interface DbTransport { id: string; ownerId: string; ownerName: string; ownerPhone: string; type: string; capacity: string; route: string; availableDates: string; region: string; price?: number; createdAt: string; }

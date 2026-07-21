@@ -74,11 +74,11 @@ export function setupSocket(server: HttpServer) {
       socket.to(`room:${roomId}`).emit('message:read', { roomId, userId: socket.userId });
     });
 
-    socket.on('message:delete', ({ roomId, messageId }: { roomId: string; messageId: string }) => {
+   socket.on('message:delete', ({ roomId, messageId }: { roomId: string; messageId: string }) => {
       const db2 = readDb();
       const msg = db2.messages.find(m => m.id === messageId && m.roomId === roomId);
       if (!msg || msg.senderId !== socket.userId) return;
-      msg.deleted = true; msg.text = ''; msg.fileUrl = undefined;
+      db2.messages = db2.messages.filter(m => m.id !== messageId);
       writeDb(db2);
       io.to(`room:${roomId}`).emit('message:deleted', { roomId, messageId });
     });
