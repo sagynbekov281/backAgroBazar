@@ -6,7 +6,7 @@ import { readDb, writeDb } from './db';
 
 interface AuthedSocket extends Socket { userId?: string; userName?: string; }
 
-const MAX_IMAGE_BASE64_LENGTH = 550_000; // ~400KB бинарный, с запасом на base64-раздутие
+const MAX_IMAGE_BASE64_LENGTH = 550_000;
 
 export function setupSocket(server: HttpServer) {
   const io = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 1_000_000 });
@@ -54,6 +54,7 @@ export function setupSocket(server: HttpServer) {
         replyTo: replyTo || undefined,
         type: isImage ? 'image' as const : 'text' as const,
         fileUrl: isImage ? fileUrl : undefined,
+        deletedFor: [] as string[],
       };
       db2.messages.push(msg); writeDb(db2);
       io.to(`room:${roomId}`).emit('message:new', msg);
@@ -74,13 +75,34 @@ export function setupSocket(server: HttpServer) {
       socket.to(`room:${roomId}`).emit('message:read', { roomId, userId: socket.userId });
     });
 
-   socket.on('message:delete', ({ roomId, messageId }: { roomId: string; messageId: string }) => {
+    // mode: 'me' | 'everyone'
+    socket.on('message:delete', ({ roomId, messageId, mode }: { roomId: string; messageId: string; mode: 'me' | 'everyone' }) => {
       const db2 = readDb();
       const msg = db2.messages.find(m => m.id === messageId && m.roomId === roomId);
-      if (!msg || msg.senderId !== socket.userId) return;
-      db2.messages = db2.messages.filter(m => m.id !== messageId);
+      if (!msg) return;
+      if (mode === 'everyone') {
+        if (msg.senderId !== socket.userId) return;
+        db2.messages = db2.messages.filter(m => m.id !== messageId);
+        writeDb(db2);
+        io.to(`room:${roomId}`).emit('message:deleted', { roomId, messageId, mode: 'everyone' });
+      } else {
+        msg.deletedFor = msg.deletedFor || [];
+        if (!msg.deletedFor.includes(socket.userId!)) msg.deletedFor.push(socket.userId!);
+        writeDb(db2);
+        socket.emit('message:deleted', { roomId, messageId, mode: 'me' });
+      }
+    });
+
+    socket.on('group:remove_member', ({ roomId, userId }: { roomId: string; userId: string }) => {
+      const db2 = readDb();
+      const room: any = db2.rooms.find(r => r.id === roomId);
+      if (!room || !room.isGroup) return;
+      const isAdmin = room.ownerId === socket.userId || (room.admins || []).includes(socket.userId);
+      if (!isAdmin || userId === room.ownerId) return;
+      room.participants = room.participants.filter((p: any) => p.id !== userId);
+      room.admins = (room.admins || []).filter((a: string) => a !== userId);
       writeDb(db2);
-      io.to(`room:${roomId}`).emit('message:deleted', { roomId, messageId });
+      io.to(`room:${roomId}`).emit('group:member_removed', { roomId, userId });
     });
 
     socket.on('typing', ({ roomId, isTyping }: { roomId: string; isTyping: boolean }) => {

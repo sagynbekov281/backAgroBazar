@@ -8,12 +8,15 @@ import { auth, AR, JWT_SECRET } from '../middleware/auth';
 const r = Router();
 const pub = ({ passwordHash, ...u }: DbUser) => u;
 
+// оставляем только цифры, чтобы номера вида +996 555 123-456, 0555123456 и т.д. совпадали при поиске
+const onlyDigits = (s: string) => s.replace(/\D/g, '');
+
 r.post('/register', async (req, res) => {
   const { name, email, phone, password, role, region, district, village, companyName, telegram, whatsapp } = req.body;
-  if (!name || !email || !phone || !password) return res.status(400).json({ message: 'Бардык талааларды толтуруңуз' });
-  if (password.length < 6) return res.status(400).json({ message: 'Сырсөз жок дегенде 6 символ болушу керек' });
+  if (!name || !email || !phone || !password) return res.status(400).json({ message: 'Заполните все поля' });
+  if (password.length < 6) return res.status(400).json({ message: 'Пароль должен содержать не менее 6 символов' });
   const db = readDb();
-  if (db.users.find(u => u.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ message: 'Бул email катталган' });
+  if (db.users.find(u => u.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ message: 'Этот email уже зарегистрирован' });
   const passwordHash = await bcrypt.hash(password, 10);
   const user: DbUser = { id: nanoid(), name, email: email.toLowerCase(), passwordHash, phone, role: role || 'buyer', region, district, village, companyName, telegram, whatsapp, rating: 0, reviewCount: 0, verified: false, totalSold: 0, totalBought: 0, createdAt: new Date().toISOString() };
   db.users.push(user); writeDb(db);
@@ -25,7 +28,7 @@ r.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const db = readDb();
   const user = db.users.find(u => u.email === email?.toLowerCase());
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) return res.status(401).json({ message: 'Email же сырсөз туура эмес' });
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) return res.status(401).json({ message: 'Неверный email или пароль' });
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, user: pub(user) });
 });
@@ -33,17 +36,27 @@ r.post('/login', async (req, res) => {
 r.get('/me', auth, (req: AR, res) => {
   const db = readDb();
   const user = db.users.find(u => u.id === req.userId);
-  if (!user) return res.status(404).json({ message: 'Колдонуучу табылган жок' });
+  if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
   res.json({ user: pub(user) });
 });
 
 r.get('/search', auth, (req: AR, res) => {
-  const q = String(req.query.q || '').trim().toLowerCase();
-  if (q.length < 2) return res.json({ users: [] });
+  const raw = String(req.query.q || '').trim();
+  const q = raw.toLowerCase();
+  const qDigits = onlyDigits(raw);
+  // поиск по номеру включается только если введено хотя бы 4 цифры подряд —
+  // иначе одиночные цифры в имени/тексте будут давать случайные совпадения
+  const searchByPhone = qDigits.length >= 4;
+  if (q.length < 2 && !searchByPhone) return res.json({ users: [] });
+
   const db = readDb();
   const results = db.users
     .filter(u => u.id !== req.userId)
-    .filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+    .filter(u =>
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (searchByPhone && u.phone && onlyDigits(u.phone).includes(qDigits))
+    )
     .slice(0, 15)
     .map(pub);
   res.json({ users: results });
@@ -52,7 +65,7 @@ r.get('/search', auth, (req: AR, res) => {
 r.get('/user/:id', (req, res) => {
   const db = readDb();
   const user = db.users.find(u => u.id === req.params.id);
-  if (!user) return res.status(404).json({ message: 'Колдонуучу табылган жок' });
+  if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
   res.json({ user: pub(user) });
 });
 
