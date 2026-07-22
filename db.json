@@ -912,6 +912,20 @@
       ],
       "type": "text",
       "deletedFor": []
+    },
+    {
+      "id": "4t8x0dtoqrdmrvxbidc",
+      "roomId": "3NkuVm5pr-ymS9cj6usXU",
+      "senderId": "i_tPZ6TyWZtLsffZF5Qwq",
+      "senderName": "com",
+      "text": "тмлдв",
+      "createdAt": "2026-07-22T10:12:28.992Z",
+      "read": false,
+      "readBy": [
+        "i_tPZ6TyWZtLsffZF5Qwq"
+      ],
+      "type": "text",
+      "deletedFor": []
     }
   ],
   "transports": [
