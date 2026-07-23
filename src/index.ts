@@ -16,7 +16,6 @@ app.use(express.json({ limit: '10mb' }));
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'AgroBazar API' }));
 
 app.use('/api/auth', authRoutes);
-app.use('/api/listings', listingRoutes);
 app.use('/api/orders', ordersRouter);
 app.use('/api/reviews', reviewsRouter);
 app.use('/api/announcements', announcementsRouter);
@@ -24,6 +23,7 @@ app.use('/api/transport', transportRouter);
 app.use('/api/prices', pricesRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/listings', listingRoutes);
 
 app.use((_req, res) => res.status(404).json({ message: 'Маршрут табылган жок' }));
 

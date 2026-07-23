@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { nanoid } from 'nanoid';
 import { readDb, writeDb, DbUser } from '../db';
 import { auth, AR, JWT_SECRET } from '../middleware/auth';
+import { AI_USER_ID, AI_USER_NAME } from '../ai';
 
 const r = Router();
 const pub = ({ passwordHash, ...u }: DbUser) => u;
@@ -63,10 +64,37 @@ r.get('/search', auth, (req: AR, res) => {
 });
 
 r.get('/user/:id', (req, res) => {
+  if (req.params.id === AI_USER_ID) {
+    return res.json({ user: { id: AI_USER_ID, name: AI_USER_NAME, email: '', phone: '', role: 'assistant', rating: 0, reviewCount: 0, verified: false, totalSold: 0, totalBought: 0, createdAt: new Date().toISOString() } });
+  }
   const db = readDb();
   const user = db.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
   res.json({ user: pub(user) });
+});
+
+r.post('/user/ai-assistant', auth, (req, res) => {
+  const db = readDb();
+  const me = db.users.find(u => u.id === req.userId);
+  if (!me) return res.status(401).json({ message: 'Авторизация требуется' });
+
+  let room = db.rooms.find(r =>
+    !r.isGroup &&
+    r.participants.some(p => p.id === AI_USER_ID) &&
+    r.participants.some(p => p.id === me.id)
+  );
+  if (!room) {
+    room = {
+      id: nanoid(),
+      isGroup: false,
+      participants: [{ id: me.id, name: me.name }, { id: AI_USER_ID, name: AI_USER_NAME }],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.push(room);
+    writeDb(db);
+  }
+
+  res.json({ roomId: room.id });
 });
 
 export default r;

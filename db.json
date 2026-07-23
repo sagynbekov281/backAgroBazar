@@ -33,7 +33,7 @@
       "totalSold": 2400000,
       "totalBought": 0,
       "createdAt": "2026-01-03T07:55:08.379Z",
-      "lastSeen": "2026-07-22T09:32:42.671Z"
+      "lastSeen": "2026-07-22T18:25:08.675Z"
     },
     {
       "id": "farmer2",
@@ -133,7 +133,7 @@
       "totalSold": 0,
       "totalBought": 0,
       "createdAt": "2026-07-13T08:44:37.162Z",
-      "lastSeen": "2026-07-22T09:53:58.111Z"
+      "lastSeen": "2026-07-22T10:22:21.869Z"
     }
   ],
   "listings": [
@@ -599,8 +599,8 @@
       "createdAt": "2026-07-22T08:36:49.249Z"
     },
     {
-      "id": "jIaDT_GsirMyB8trE-zPI",
       "isGroup": true,
+      "id": "jIaDT_GsirMyB8trE-zPI",
       "name": "test2",
       "ownerId": "i_tPZ6TyWZtLsffZF5Qwq",
       "admins": [
@@ -619,8 +619,8 @@
       "createdAt": "2026-07-22T09:47:42.789Z"
     },
     {
-      "id": "mbnuhj3NFo8OtEkaGYYv1",
       "isGroup": false,
+      "id": "mbnuhj3NFo8OtEkaGYYv1",
       "participants": [
         {
           "id": "i_tPZ6TyWZtLsffZF5Qwq",
@@ -632,6 +632,36 @@
         }
       ],
       "createdAt": "2026-07-22T09:55:31.721Z"
+    },
+    {
+      "isGroup": false,
+      "id": "FHy7hIZ2HGZymFjJPQB_J",
+      "participants": [
+        {
+          "id": "i_tPZ6TyWZtLsffZF5Qwq",
+          "name": "com"
+        },
+        {
+          "id": "farmer1",
+          "name": "Айбек Турсунов"
+        }
+      ],
+      "createdAt": "2026-07-22T10:16:57.940Z"
+    },
+    {
+      "isGroup": false,
+      "id": "wYgH4LTiHdWni58UD59mu",
+      "participants": [
+        {
+          "id": "farmer1",
+          "name": "Айбек Турсунов"
+        },
+        {
+          "id": "ai-assistant",
+          "name": "AgroBazar AI"
+        }
+      ],
+      "createdAt": "2026-07-22T18:03:58.920Z"
     }
   ],
   "messages": [
@@ -923,6 +953,49 @@
       "read": false,
       "readBy": [
         "i_tPZ6TyWZtLsffZF5Qwq"
+      ],
+      "type": "text",
+      "deletedFor": []
+    },
+    {
+      "id": "4jo0ubd0wzlmrvxhbu9",
+      "roomId": "FHy7hIZ2HGZymFjJPQB_J",
+      "senderId": "i_tPZ6TyWZtLsffZF5Qwq",
+      "senderName": "com",
+      "text": "привет",
+      "createdAt": "2026-07-22T10:17:00.465Z",
+      "read": true,
+      "readBy": [
+        "i_tPZ6TyWZtLsffZF5Qwq",
+        "farmer1"
+      ],
+      "type": "text",
+      "deletedFor": []
+    },
+    {
+      "id": "v0n4cmj4738mrwa6654",
+      "roomId": "FHy7hIZ2HGZymFjJPQB_J",
+      "senderId": "farmer1",
+      "senderName": "Айбек Турсунов",
+      "text": "ыврпср",
+      "createdAt": "2026-07-22T16:12:14.872Z",
+      "read": false,
+      "readBy": [
+        "farmer1"
+      ],
+      "type": "text",
+      "deletedFor": []
+    },
+    {
+      "id": "hnckjfiaolqmrwcwj7m",
+      "roomId": "FHy7hIZ2HGZymFjJPQB_J",
+      "senderId": "farmer1",
+      "senderName": "Айбек Турсунов",
+      "text": "gjkds",
+      "createdAt": "2026-07-22T17:28:44.098Z",
+      "read": false,
+      "readBy": [
+        "farmer1"
       ],
       "type": "text",
       "deletedFor": []

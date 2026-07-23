@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { readDb, writeDb } from '../db';
 import { auth, AR } from '../middleware/auth';
+import { AI_USER_ID, AI_USER_NAME } from '../ai';
 
 /* ── ORDERS ── */
 export const ordersRouter = Router();
@@ -118,6 +119,41 @@ chatRouter.post('/start', auth, (req: AR, res) => {
   if (!room) {
     room = { id: nanoid(), isGroup: false, participants: [{ id: me.id, name: me.name }, { id: other.id, name: other.name }], createdAt: new Date().toISOString() };
     db.rooms.push(room); writeDb(db);
+  }
+  res.json({ roomId: room.id });
+});
+
+chatRouter.post('/ai/start', auth, (req: AR, res) => {
+  const db = readDb();
+  const me = db.users.find(u => u.id === req.userId);
+  if (!me) return res.status(401).json({ message: 'Требуется авторизация' });
+
+  let room = db.rooms.find(r =>
+    !r.isGroup &&
+    r.participants.some(p => p.id === AI_USER_ID) &&
+    r.participants.some(p => p.id === me.id)
+  );
+  if (!room) {
+    room = {
+      id: nanoid(), isGroup: false,
+      participants: [{ id: me.id, name: me.name }, { id: AI_USER_ID, name: AI_USER_NAME }],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.push(room);
+    const welcome = {
+      id: nanoid(),
+      roomId: room.id,
+      senderId: AI_USER_ID,
+      senderName: AI_USER_NAME,
+      text: 'Здравствуйте! Я AgroBazar AI. Напишите своё сообщение, и я отвечу.',
+      createdAt: new Date().toISOString(),
+      read: false,
+      readBy: [AI_USER_ID],
+      type: 'text' as const,
+      deletedFor: [] as string[],
+    };
+    db.messages.push(welcome);
+    writeDb(db);
   }
   res.json({ roomId: room.id });
 });
